@@ -82,6 +82,56 @@ In the eSSL Web admin panel:
 - The **sync window** is `last_synced_at → today`. On the very first sync, it falls back to `yesterday → today`. Frappe HR deduplicates exact `(employee, timestamp)` pairs, so overlap between runs is safe.
 - Dates are sent to the eSSL SOAP API in `YYYY-MM-DD` format as required by the `GetTransactionsLog` endpoint.
 
+## ADMS Push Setup
+
+Newer eSSL Linux-based devices (e.g. AiFace Orcus) support an **ADMS push** protocol: the device calls your server over HTTP at regular intervals instead of you polling the device. This app exposes the required endpoints at `/iclock/cdata`.
+
+### How it works
+
+| Direction | Method | Path | Purpose |
+|-----------|--------|------|---------|
+| Device → Server | GET | `/iclock/cdata` | Heartbeat — device registers and receives sync options |
+| Device → Server | POST | `/iclock/cdata` | Attendance log upload — device pushes punch records |
+| Server → Device | (response body) | — | `ATTLOGStamp` tells device which records it has already sent |
+
+On each POST the app:
+1. Parses tab-delimited punch records from the body.
+2. Maps status code → `IN` / `OUT` (`0`/`4` → IN; `1`/`5` → OUT; others skipped).
+3. Calls `add_log_based_on_employee_field` matching on the **Attendance Device ID** field.
+4. Persists the highest Unix timestamp as `last_adms_stamp` on the device row so the next heartbeat returns the correct `ATTLOGStamp`.
+
+The endpoint always returns HTTP 200 — errors are logged silently so the device never enters a retry loop.
+
+### Device configuration
+
+In your eSSL device's network settings, set:
+
+| Device field | Value |
+|---|---|
+| Server address | `your-frappe-site.example.com` |
+| Server port | `80` (or `443` for HTTPS) |
+| Device path | `/iclock/` |
+| ADMS enabled | ✓ |
+
+Leave **Username** and **Password** fields blank — these endpoints require no Frappe authentication.
+
+### Frappe-side configuration
+
+1. Open **eSSL Integration Settings**.
+2. In the **Devices** table, tick **ADMS Enabled** for each device that will push.
+3. **Last ADMS Stamp** is updated automatically — do not edit it manually.
+
+> `Attendance Device ID` on each Employee must still match the numeric user ID sent by the device (the first column in each punch record).
+
+### Troubleshooting ADMS
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| Device shows "Connect failed" | Frappe not reachable from device network | Check firewall; ensure port 80/443 is open |
+| Records received but no checkins created | `Attendance Device ID` not set | Set field on Employee to match device user ID |
+| `eSSL ADMS Error` in Error Log | Unexpected exception | Check traceback in Error Log; verify hrms is installed |
+| `ATTLOGStamp` always 0 | No successful pushes yet | Normal on first contact; stamp updates after first successful batch |
+
 ## Contributing
 
 This app uses `pre-commit` for code formatting and linting. Please [install pre-commit](https://pre-commit.com/#installation) and enable it:

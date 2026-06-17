@@ -11,8 +11,10 @@ class eSSLDevice(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		adms_enabled: DF.Check
 		device_label: DF.Data
 		enabled: DF.Check
+		last_adms_stamp: DF.Int
 		last_synced_at: DF.Date | None
 		parent: DF.Data
 		parentfield: DF.Data

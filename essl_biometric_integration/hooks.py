@@ -149,6 +149,17 @@ scheduler_events = {
 	]
 }
 
+# ADMS Push Receiver
+# ------------------
+# eSSL devices (e.g. AiFace Orcus) call /iclock/cdata directly over TCP/IP.
+# These routes bypass /api/method/ so the device needs no Frappe auth token.
+website_route_rules = [
+	{
+		"from_route": "/iclock/cdata",
+		"to_route": "essl_biometric_integration.adms.receiver.handle",
+	},
+]
+
 # Testing
 # -------
 
